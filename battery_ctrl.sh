@@ -1,8 +1,5 @@
-#!/bin/sh
+#!/usr/bin/env sh
 #set -x
-
-START_THRESHOLD=${2}
-STOP_THRESHOLD=${3}
 
 GET_START="BCTG"
 SET_START="BCCS"
@@ -21,8 +18,8 @@ ACPI_BATTERY_HANDLE=""
 # check permissions
 SUDO=""
 if ! [ "$(id -u)" -eq 0 ]; then
-  [ -f "$(which sudo)" ] && [ -x "$(which sudo)" ] && setvar SUDO "$(which sudo)"
-  [ -f "$(which doas)" ] && [ -x "$(which doas)" ] && setvar SUDO "$(which doas)"
+  [ -f "$(which sudo)" ] && [ -x "$(which sudo)" ] && SUDO="$(which sudo)"
+  [ -f "$(which doas)" ] && [ -x "$(which doas)" ] && SUDO="$(which doas)"
 fi
 
 __check_sudo() {
@@ -139,7 +136,7 @@ __show() {
   echo "    charge stop  threshold: ${CURRENT_CHARGE_STOP_THRESHOLD}%"
 }
 
-__show_diagnostics() {
+__show_verbose() {
   echo
   /usr/bin/env acpiconf -i 0
   __show
@@ -192,9 +189,110 @@ __usage() {
   echo "  EXAMPLE: ${0##*/} -t 40 80"
 }
 
+while getopts "sv-:" opt; do
+  case $opt in
+    -)
+        case "${OPTARG}" in
+            show)
+                SHOW="true"
+                ;;
+            verbose)
+                VERBOSE="true"
+                ;;
+            start)
+                START_THRESHOLD="$(eval "echo \$${OPTIND}")";
+                OPTIND="$(( OPTIND + 1 ))"
+                echo "Specified start threshold with '--${OPTARG}': ${START_THRESHOLD}" >&2;
+                ;;
+            start=*)
+                START_THRESHOLD=${OPTARG#*=}
+                echo "Specified start threshold with '--start=${START_THRESHOLD}'" >&2;
+                ;;
+            stop)
+                STOP_THRESHOLD="$(eval "echo \$${OPTIND}")";
+                OPTIND="$(( OPTIND + 1 ))"
+                echo "Specified stop threshold with '--${OPTARG}': ${STOP_THRESHOLD}" >&2;
+                ;;
+            stop=*)
+                STOP_THRESHOLD=${OPTARG#*=}
+                echo "Specified stop threshold with '--stop=${STOP_THRESHOLD}'" >&2;
+                ;;
+            *)
+                if [ "$OPTERR" = 1 ] && [ "${optspec:0:1}" != ":" ]; then
+                    echo "Unknown option --${OPTARG}" >&2
+                fi
+                ;;
+        esac;;
+    s)
+      SHOW="true"
+      ;;
+    v)
+      VERBOSE="true"
+      ;;
+    f)
+      echo "Option -f triggered with argument '$OPTARG'"
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG"
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument."
+      ;;
+  esac
+done
+
+if [ -n "${START_THRESHOLD}" ]; then
+  if [ -z "${STOP_THRESHOLD}" ]; then
+    STOP_THRESHOLD=$(__get_acpi_value "${GET_STOP}")
+  fi
+  __update_thresholds
+elif [ -n "${STOP_THRESHOLD}" ]; then
+  if [ -z "${START_THRESHOLD}" ]; then
+    START_THRESHOLD=$(__get_acpi_value "${GET_START}")
+  fi
+  __update_thresholds
+fi
+
+if [ "${SHOW}" = "true" ]; then
+  if [ "${VERBOSE}" = "true" ]; then
+    __show_verbose
+  else
+    __show
+  fi
+fi
+
+exit 0
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -s|--show)
+            SHOW="true"
+            shift 1
+            ;;
+        -v|--verbose)
+            VERBOSE="true"
+            shift 1
+            ;;
+        *)
+            echo "Unknown option: $1"
+            shift 1
+            ;;
+    esac
+done
+
+if [ "${SHOW}" = "true" ]; then
+  if [ "${VERBOSE}" = "true" ]; then
+    __show_verbose
+  else
+    __show
+  fi
+fi
+
+exit 0
+
 case "${1}" in
-  (-d)            __show_diagnostics ;;
-  (--diagnostics) __show_diagnostics ;;
+  (-d)            __show_verbose ;;
+  (--diagnostics) __show_verbose ;;
   (-s)            __show ;;
   (--show)        __show ;;
   (-t)            __update_thresholds ;;
