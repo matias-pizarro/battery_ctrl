@@ -179,14 +179,22 @@ __update_thresholds() {
 }
 
 __usage() {
-  echo "usage: ${0##*/} OPTION DIRECTORY"
-  echo "  OPTIONS: -d"
-  echo "           --diagnostics   print out basic battery diagnostics"
-  echo "           -t"
-  echo "           --thresholds    set thresholds at which batteries will start and stop charging"
+  echo ""
+  echo "Usage: ${0##*/} -sv --start=<start threshold> --stop=<stop threshold> --"
+  echo "  OPTIONS: -s"
+  echo "           --show            print out basic battery diagnostics (apm output)"
+  echo "           -sv"
+  echo "           --show --verbose  print out extended battery diagnostics (apm + acpiconf) "
+  echo "           --start           set thresholds at which batteries will start charging"
+  echo "           --stop            set thresholds at which batteries will stop charging"
   echo "           -h"
-  echo "           --help"
-  echo "  EXAMPLE: ${0##*/} -t 40 80"
+  echo "           --help            show this hjelp summary"
+  echo "  EXAMPLES:"
+  echo "      # Set start and stop thresholds"
+  echo "      ${0##*/} --start=40 --stop=80"
+  echo ""
+  echo "      # See battery diagnostics"
+  echo "      ${0##*/} -sv"
 }
 
 while getopts "sv-:" opt; do
@@ -199,6 +207,9 @@ while getopts "sv-:" opt; do
             verbose)
                 VERBOSE="true"
                 ;;
+            # Known issue: when using sh nd specifying more than one long
+            # option and not using the equal sign form, only the first option is read
+            # e.g. ./battery_ctrl.sh --start 40 --stop 80
             start)
                 START_THRESHOLD="$(eval "echo \$${OPTIND}")";
                 OPTIND="$(( OPTIND + 1 ))"
@@ -208,6 +219,9 @@ while getopts "sv-:" opt; do
                 START_THRESHOLD=${OPTARG#*=}
                 echo "Specified start threshold with '--start=${START_THRESHOLD}'" >&2;
                 ;;
+            # Known issue: when using sh nd specifying more than one long
+            # option and not using the equal sign form, only the first option is read
+            # e.g. ./battery_ctrl.sh --start 40 --stop 80
             stop)
                 STOP_THRESHOLD="$(eval "echo \$${OPTIND}")";
                 OPTIND="$(( OPTIND + 1 ))"
@@ -229,14 +243,13 @@ while getopts "sv-:" opt; do
     v)
       VERBOSE="true"
       ;;
-    f)
-      echo "Option -f triggered with argument '$OPTARG'"
-      ;;
     \?)
       echo "Invalid option: -$OPTARG"
+      USAGE="true"
       ;;
     :)
       echo "Option -$OPTARG requires an argument."
+      USAGE="true"
       ;;
   esac
 done
@@ -259,6 +272,10 @@ if [ "${SHOW}" = "true" ]; then
   else
     __show
   fi
+fi
+
+if [ "${USAGE}" = "true" ]; then
+  __usage
 fi
 
 exit 0
